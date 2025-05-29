@@ -1,48 +1,64 @@
-# Housing_Market_Index
-To calculate a **Housing Market Index** per metropolitan area using data from [data.census.gov](https://data.census.gov), you’ll need to compile a **composite index** from a variety of housing-related variables. Below is a structured table of relevant **topics and tables** you should search for, based on commonly used indicators in housing market health assessments (e.g., affordability, homeownership, construction, vacancy, rents, prices).
+# 🏠 Housing Market Index — Methodology and Data Sources
+
+To calculate a **Housing Market Index** (HMI) for each metropolitan area using data from [data.census.gov](https://data.census.gov), we compile a **composite score** capturing affordability, supply-demand balance, cost burdens, and new construction. Below is the full breakdown of **data sources**, **engineered features**, and the **composite index formula**.
 
 ---
 
-### 📊 Recommended Tables from data.census.gov for Housing Market Index (per metro area)
+## 📊 Source Tables from data.census.gov
 
-| **Indicator**                       | **Table Code / Name**                                                              | **Use**                                      |
-| ----------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------- |
-| **Homeownership Rate**              | B25003 – *Tenure*                                                                  | % of owner-occupied vs renter-occupied units |
-| **Median Home Value**               | B25077 – *Median Value (Dollars) for Owner-Occupied Housing Units*                 | Measures affordability & appreciation        |
-| **Median Gross Rent**               | B25064 – *Median Gross Rent*                                                       | Rental affordability indicator               |
-| **Housing Vacancy Rate**            | B25002 – *Occupancy Status* (calculate % vacant)                                   | Measures supply vs demand balance            |
-| **Median Household Income**         | B19013 – *Median Household Income in the Past 12 Months*                           | Used to calculate affordability ratios       |
-| **New Construction / Permits**      | Building Permits Survey (via Annual Construction Report) or C-40 (external to ACS) | Measure housing supply growth                |
-| **Housing Units**                   | B25001 – *Total Housing Units*                                                     | Baseline housing supply                      |
-| **Population Estimates**            | PEPTCOMP or PEPANNRES (via Population Estimates Program)                           | Normalize metrics per capita or household    |
-| **Gross Rent as % of Income**       | B25070 – *Gross Rent as a Percentage of Household Income*                          | Captures rent burden                         |
-| **Monthly Owner Costs as % Income** | B25091 – *Selected Monthly Owner Costs as a Percentage of Household Income*        | Captures ownership burden                    |
-| **Units Built Recently**            | B25036 – *Year Structure Built*                                                    | Shows share of new construction              |
+| **Indicator**               | **Table Code / Name**                                              | **Use**                                      |
+| --------------------------- | ------------------------------------------------------------------ | -------------------------------------------- |
+| **Homeownership & Rent**    | B25003 – *Tenure*                                                  | Determines % Owner vs Renter occupied        |
+| **Median Home Value**       | B25077 – *Median Value (Dollars) for Owner-Occupied Housing Units* | Home price for affordability ratio           |
+| **Median Household Income** | B19013 – *Median Household Income in the Past 12 Months*           | Used in affordability and burden ratios      |
+| **Gross Rent Burden**       | B25070 – *Gross Rent as % of Household Income*                     | Renters paying >30% or >50% of income        |
+| **Owner Cost Burden**       | B25091 – *Monthly Owner Costs as % of Income*                      | Owners paying >30% of income on housing      |
+| **Vacancy Status**          | B25002 – *Occupancy Status*                                        | Vacant vs occupied units                     |
+| **Housing Units Total**     | B25001 – *Total Housing Units*                                     | Baseline denominator for many ratios         |
+| **Year Structure Built**    | B25036 – *Year Built by Tenure*                                    | Used to calculate share of new units         |
+| **Population Estimate**     | PEPANNRES (via Population Estimates Program)                       | Used for per capita / per unit normalization |
 
 ---
 
-### Optional Enhancements:
+## 🛠️ Features Engineered for HMI
 
-| **Metric**                 | **Table**                            | **Purpose**                                       |
-| -------------------------- | ------------------------------------ | ------------------------------------------------- |
-| Cost-Burdened Renters      | B25070 (thresholds: >30%, >50%)      | High proportions indicate rental strain           |
-| Foreclosure or Delinquency | External (FHFA, HUD, or Zillow)      | Not available directly via census, but often used |
-| House Price Index          | FHFA House Price Index (metro-level) | Can be merged externally                          |
+| **Feature**           | **Formula**                                                                       | **Description**                          |
+| --------------------- | --------------------------------------------------------------------------------- | ---------------------------------------- |
+| `Affordability_Ratio` | `Median_Home_Value / MedianHouseholdIncome`                                       | High = less affordable                   |
+| `Vacancy_Rate`        | `Vacant / Total_Housing_Units`                                                    | Share of unoccupied housing              |
+| `Rent_Burden_Rate`    | `High_Rent_Burden / Renter occupied` *(if `High_Rent_Burden` is not already a %)* | % renters burdened                       |
+| `Owner_Burden_Rate`   | `Owner_Cost_Burden / Owner occupied` *(if not already a %)*                       | % homeowners burdened                    |
+| `New_Units_Rate`      | `New_Housing_Units / Total_Housing_Units`                                         | Share of recently built housing stock    |
+| `Pop_to_Unit_Ratio`   | `Population / Total_Housing_Units`                                                | High = higher pressure on housing supply |
+| `Recent_Units_Share`  | Already calculated from B25036                                                    | % of housing built in 2010 or later      |
 
 ---
 
-### Suggested Composite Index Formula Example
+## 🧮 Composite Housing Market Index Formula
 
-To create a **Housing Market Index**, you might standardize and average components such as:
+The **Housing Market Index** is a weighted average of standardized (z-score) features, structured as follows:
 
-```
-HMI = avg(
-  z(Homeownership Rate),
-  -z(Median Home Value / Median Income),
-  -z(Rent Burden),
-  -z(Vacancy Rate),
-  z(Construction Rate per 1,000 households)
+```python
+Housing_Market_Index = (
+    0.25 * Recent_Units_Share +
+    0.20 * (New_Housing_Units / Total_Housing_Units) +
+    0.20 * (MedianHouseholdIncome / Median_Home_Value) +
+    0.15 * (1 - High_Rent_Burden) +
+    0.10 * (1 - Owner_Cost_Burden) +
+    0.10 * (1 - Vacancy_Rate)
 )
 ```
 
-Let me know if you'd like help building this in Python or joining these datasets!
+* All percentages should be converted to decimals (e.g., 30% → 0.30)
+* Inverses (`1 - ...`) are used so higher scores consistently indicate *better* housing conditions
+* Optionally, scale each variable using z-scores for comparability before aggregation
+
+---
+
+## ✅ Notes
+
+* This index balances **affordability**, **availability**, **housing stress**, and **supply growth**
+* You can adjust weights to suit local policy emphasis (e.g., give more weight to affordability in high-cost cities)
+* The result is a continuous index where **higher values indicate healthier housing markets**
+
+---
